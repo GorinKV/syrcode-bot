@@ -24,14 +24,21 @@ mkdir -p "$TMP_DIR/taskdog"
 cp -r "$HOME/.config/taskdog/"* "$TMP_DIR/taskdog/" 2>/dev/null || true
 echo "  ✅ taskdog configs"
 
-# 3. Taskdog БД
-TASKDOG_DATA=$(find "$HOME" -name "tasks.db" -o -name "*.sqlite" -o -name "*.db" 2>/dev/null | grep -i taskdog | head -5)
-if [ -n "$TASKDOG_DATA" ]; then
-    mkdir -p "$TMP_DIR/taskdog_data"
-    for db in $TASKDOG_DATA; do
-        cp "$db" "$TMP_DIR/taskdog_data/" 2>/dev/null || true
-    done
-    echo "  ✅ taskdog database"
+# 3. Taskdog БД — берём напрямую + ищем дополнительно
+mkdir -p "$TMP_DIR/taskdog_data"
+TASKDOG_DB="$HOME/.local/share/taskdog/tasks.db"
+if [ -f "$TASKDOG_DB" ]; then
+    cp "$TASKDOG_DB" "$TMP_DIR/taskdog_data/"
+    echo "  ✅ taskdog database (tasks.db)"
+else
+    echo "  ⚠️ tasks.db не найден по стандартному пути, ищем..."
+    TASKDOG_DATA=$(find "$HOME" -name "tasks.db" -o -name "*.sqlite" -o -name "*.db" 2>/dev/null | grep -i taskdog | head -5)
+    if [ -n "$TASKDOG_DATA" ]; then
+        for db in $TASKDOG_DATA; do
+            cp "$db" "$TMP_DIR/taskdog_data/" 2>/dev/null || true
+        done
+        echo "  ✅ taskdog database (найдено: $(echo $TASKDOG_DATA | wc -w))"
+    fi
 fi
 
 # 4. tg-ws-proxy

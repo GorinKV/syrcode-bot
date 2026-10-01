@@ -111,10 +111,19 @@ case "$MODE" in
 
         if [ -d "$RESTORE_DIR/taskdog_data" ]; then
             echo "  → База задач..."
+            DB_DEST="$HOME/.local/share/taskdog"
+            mkdir -p "$DB_DEST"
             for db in "$RESTORE_DIR/taskdog_data/"*; do
                 [ -f "$db" ] || continue
-                DEST=$(find "$HOME" -name "$(basename "$db")" 2>/dev/null | grep -i taskdog | head -1)
-                [ -n "$DEST" ] && cp "$db" "$DEST"
+                DB_NAME=$(basename "$db")
+                # Основной путь: ~/.local/share/taskdog/
+                if [ "$DB_NAME" = "tasks.db" ]; then
+                    cp "$db" "$DB_DEST/$DB_NAME"
+                    echo "    ✅ Восстановлено: $DB_DEST/$DB_NAME"
+                else
+                    DEST=$(find "$HOME" -name "$DB_NAME" 2>/dev/null | grep -i taskdog | head -1)
+                    [ -n "$DEST" ] && cp "$db" "$DEST"
+                fi
             done
         fi
 
