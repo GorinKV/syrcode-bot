@@ -529,3 +529,96 @@ def list_completed_tasks():
     if len(completed) > 30:
         lines.append(f"  ... и ещё {len(completed) - 30}")
     return "\n".join(lines)
+
+
+def undo_completed(position):
+    """Возвращает задачу из выполненных в активные.
+
+    position — номер в списке выполненных (1-based, по порядку из completed_log).
+    Если задача ещё есть в Taskdog — возвращает статус в PENDING.
+    Если её нет — создаёт заново.
+    """
+    log = _read_completed_log()
+    if not log:
+        return "📭 Список выполненных пуст."
+
+    # Сортируем так же, как в list_completed_tasks — свежие сверху
+    sorted_log = sorted(
+        log,
+        key=lambda d: (d.get("date", ""), d.get("time", "")),
+        reverse=True,
+    )
+
+    if position < 1 or position > len(sorted_log):
+        return f"⚠️ В выполненных только {len(sorted_log)} задач."
+
+    entry = sorted_log[position - 1]
+    name = entry.get("name", "?")
+    old_id = entry.get("id")
+
+    # Проверяем, есть ли задача среди активных
+    active = get_tasks_list()
+    in_active = next((t for t in active if t.get("id") == old_id), None)
+
+    action_taken = ""
+
+    if in_active:
+        # Задача ещё жива — возвращаем статус в PENDING через PATCH
+        try:
+            r = httpx.patch(
+                f"{TASKDOG_API_URL}/api/v1/tasks/{old_id}",
+                json={"status": "PENDING"},
+                headers=HEADERS,
+                timeout=10,
+                follow_redirects=True,
+            )
+            if r.status_code < 400:
+                action_taken = f"статус возвращён в PENDING (ID={old_id})"
+            else:
+                action_taken = f"⚠️ PATCH вернул {r.status_code}, но задача была в активных"
+        except Exception as e:
+            action_taken = f"⚠️ Ошибка PATCH: {e}"
+    else:
+        # Задачи нет — создаём заново
+        try:
+            r = httpx.post(
+                f"{TASKDOG_API_URL}/api/v1/tasks",
+                json={"name": name, "priority": 5},
+                headers=HEADERS,
+                timeout=10,
+                follow_redirects=True,
+            )
+            r.raise_for_status()
+            new_task = r.json()
+            new_id = new_task.get("id")
+            action_taken = f"создана заново (новый ID={new_id})"
+        except Exception as e:
+            return f"⚠️ Не удалось создать задачу: {e}"
+
+    # Убираем из лога выполненных
+    new_log = [
+        d for d in log
+        if not (d.get("id") == old_id
+                and d.get("name") == name
+                and d.get("date") == entry.get("date")
+                and d.get("time") == entry.get("time"))
+    ]
+    with open(COMPLETED_LOG, "w") as f:
+        json.dump(new_log, f, ensure_ascii=False, indent=2)
+
+    return f"↩️ Задача «{name}» возвращена в активные ({action_taken})."
+
+
+def list_completed_today():
+    """Показывает выполненные за сегодня."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    completed = [d for d in _read_completed_log() if d.get("date") == today]
+
+    if not completed:
+        return "📭 Сегодня ещё ничего не выполнено."
+
+    lines = [f"✅ Выполнено за сегодня ({len(completed)}):"]
+    sorted_log = sorted(completed, key=lambda d: d.get("time", ""), reverse=True)
+    for d in sorted_log:
+        lines.append(f"• {d.get('name', '?')} — {d.get('time', '')}")
+    return "\n".join(lines)

@@ -15,12 +15,14 @@ from core.task_manager import (
     list_all_tasks,
     list_completed_month,
     list_completed_tasks,
+    list_completed_today,
     list_completed_year,
     delete_task,
     clear_tasks,
     resolve_and_delete,
     resolve_done,
     mark_done_by_position,
+    undo_completed,
     get_tasks_list,
 )
 from core.file_keeper import log_to_file
@@ -84,6 +86,7 @@ HELP_TEXT = (
     "  • /month — выполнено за месяц\n"
     "  • /year — выполнено за год\n"
     "  • /done N — отметить выполненной\n"
+    "  • /undo N — вернуть из выполненных\n"
     "  • /del N — удалить\n"
     "  • /clear — очистить всё\n"
     "  • /chatid — узнать chat_id\n"
@@ -291,6 +294,21 @@ async def cmd_git(message: types.Message):
     await message.answer(result)
 
 
+@dp.message(Command("undo"))
+async def cmd_undo(message: types.Message):
+    """Вернуть задачу из выполненных в активные."""
+    arg = message.text.replace("/undo", "", 1).strip()
+    if not arg.isdigit():
+        await message.answer(
+            "Укажи номер из списка выполненных (см. /completed):\n"
+            "/undo 1 — вернуть самую свежую"
+        )
+        return
+    result = undo_completed(int(arg))
+    log_to_file(message.text, result)
+    await message.answer(result)
+
+
 @dp.message(F.voice)
 async def handle_voice(message: types.Message):
     _save_chat_id(message.chat.id)
@@ -341,6 +359,8 @@ async def handle_parsed_command(message: types.Message, source_text: str, cmd: d
         result = list_tasks(sort_by_deadline=True)
     elif action == "list_all":
         result = list_all_tasks()
+    elif action == "list_completed_today":
+        result = list_completed_today()
     elif action == "list_completed":
         result = list_completed_tasks()
     elif action == "list_completed_month":
