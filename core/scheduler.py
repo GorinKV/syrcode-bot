@@ -101,21 +101,20 @@ async def job_morning_digest(bot):
         await bot.send_message(chat_id, "\n".join(lines))
         print(f">>> [scheduler] Утренний дайджест отправлен в {chat_id}")
     except Exception as e:
-        print(f">>> [scheduler] Ошибка отправки утреннего дайджеста: {e}")
+        print(f">>> [scheduler] Ошибка утреннего дайджеста: {e}")
 
 
 async def job_reminder(bot):
+    """Всегда присылает: либо просроченные/завтра, либо 'задач нет'."""
     chat_id = _read_chat_id()
     if not chat_id:
         return
 
     tomorrow = get_tasks_for_tomorrow()
     overdue = get_overdue_tasks()
+    all_tasks = get_tasks_list()
 
-    if not tomorrow and not overdue:
-        return
-
-    lines = ["⏰ Напоминание о сроках", ""]
+    lines = ["⏰ Проверка в 17:00", ""]
 
     if overdue:
         lines.append("⚠️ Просрочено:")
@@ -127,9 +126,20 @@ async def job_reminder(bot):
         lines.append("📅 На завтра:")
         for i, t in enumerate(tomorrow, 1):
             lines.append(_format_task(t, i))
+        lines.append("")
+
+    if not overdue and not tomorrow:
+        if all_tasks:
+            lines.append(f"✨ Срочных дел нет. Активных задач: {len(all_tasks)}.")
+            lines.append("")
+            lines.append("📋 Активные задачи:")
+            for i, t in enumerate(all_tasks[:10], 1):
+                lines.append(_format_task(t, i))
+        else:
+            lines.append("📭 Задач нет — чистый лист!")
 
     try:
-        await bot.send_message(chat_id, "\n".join(lines))
+        await bot.send_message(chat_id, "\n".join(lines).rstrip())
         print(">>> [scheduler] Напоминание отправлено")
     except Exception as e:
         print(f">>> [scheduler] Ошибка напоминания: {e}")
@@ -183,18 +193,14 @@ async def job_evening_report(bot):
 
 
 async def job_auto_commit(bot):
-    """Автокоммит во всех отслеживаемых проектах. Раз в час, молчит если нечего коммитить."""
     try:
         from core import git_manager
-
         projects = git_manager._load_projects()
         if not projects:
-            return  # нет проектов — ничего не делаем
-
+            return
         result = await git_manager.auto_commit_all()
         if not result:
-            return  # нечего коммитить — молчим
-
+            return
         chat_id = _read_chat_id()
         if chat_id:
             await bot.send_message(chat_id, result)
@@ -213,7 +219,6 @@ def setup_scheduler(bot):
         id="morning_digest",
         replace_existing=True,
     )
-
     scheduler.add_job(
         job_reminder,
         CronTrigger(hour=17, minute=0),
@@ -221,7 +226,6 @@ def setup_scheduler(bot):
         id="reminder",
         replace_existing=True,
     )
-
     scheduler.add_job(
         job_evening_report,
         CronTrigger(hour=20, minute=40),
@@ -229,8 +233,6 @@ def setup_scheduler(bot):
         id="evening_report",
         replace_existing=True,
     )
-
-    # Автокоммит — каждый час с 9:00 до 22:00
     scheduler.add_job(
         job_auto_commit,
         CronTrigger(hour="9-22", minute=0),
@@ -239,5 +241,5 @@ def setup_scheduler(bot):
         replace_existing=True,
     )
 
-    print(">>> [scheduler] Задачи запланированы: 7:00 (дайджест), 17:00 (напоминание), 20:40 (отчёт), 9-22 каждый час (автокоммит)")
+    print(">>> [scheduler] Запланировано: 7:00, 17:00, 20:40 + автокоммит 9-22")
     return scheduler
