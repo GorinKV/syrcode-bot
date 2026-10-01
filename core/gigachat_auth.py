@@ -35,3 +35,11 @@ async def get_access_token() -> str:
         _expires_at = payload.get("expires_at", time.time() + 1800)
         print(f">>> GigaChat: токен обновлён, действует до {time.strftime('%H:%M:%S', time.localtime(_expires_at))}")
         return _access_token
+
+
+def reset_token():
+    """Сбрасывает кэшированный токен — следующий get_access_token запросит новый."""
+    global _access_token, _expires_at
+    _access_token = None
+    _expires_at = 0.0
+    print(">>> GigaChat: токен сброшен (reset_token)")
