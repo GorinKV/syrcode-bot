@@ -27,6 +27,7 @@ from core.file_keeper import log_to_file
 from core.voice_handler import transcribe_voice, extract_command
 from core.natural_commands import parse
 from core.scheduler import setup_scheduler
+from core import git_manager
 
 logging.basicConfig(level=logging.INFO)
 
@@ -69,6 +70,13 @@ HELP_TEXT = (
     "  • удали первую задачу\n"
     "  • удали #3\n"
     "  • удали все задачи\n\n"
+    "📦 Git:\n"
+    "  • /git add ~/project — добавить проект\n"
+    "  • /git list — список проектов\n"
+    "  • /git status — статус репозиториев\n"
+    "  • /git commit — коммит с LLM-сообщением\n"
+    "  • /git auto — запустить автокоммит сейчас\n"
+    "  • /git remove ~/project — убрать из списка\n\n"
     "🛠 Команды:\n"
     "  • /task Название — создать\n"
     "  • /tasks — активные задачи\n"
@@ -191,6 +199,94 @@ async def cmd_delete(message: types.Message):
 @dp.message(Command("clear"))
 async def cmd_clear(message: types.Message):
     result = clear_tasks()
+    log_to_file(message.text, result)
+    await message.answer(result)
+
+
+@dp.message(Command("git"))
+async def cmd_git(message: types.Message):
+    """Управление git-проектами."""
+    args = message.text.replace("/git", "", 1).strip().split(None, 1)
+    subcmd = args[0].lower() if args else ""
+    arg = args[1].strip() if len(args) > 1 else ""
+
+    # /git — справка
+    if not subcmd:
+        help_text = (
+            "📦 Git-команды:\n\n"
+            "  /git add <путь> — добавить проект\n"
+            "  /git list — список проектов\n"
+            "  /git remove <путь> — убрать проект\n"
+            "  /git status [путь] — статус репозиториев\n"
+            "  /git commit [путь] — коммит с LLM-сообщением\n"
+            "  /git auto — автокоммит во всех проектах\n\n"
+            "Примеры:\n"
+            "  /git add ~/myproject\n"
+            "  /git status\n"
+            "  /git commit ~/myproject"
+        )
+        await message.answer(help_text)
+        log_to_file(message.text, help_text)
+        return
+
+    await bot.send_chat_action(message.chat.id, "typing")
+
+    # /git add <путь>
+    if subcmd == "add":
+        if not arg:
+            await message.answer("Укажи путь: /git add ~/myproject")
+            return
+        result = git_manager.add_project(arg)
+
+    # /git list
+    elif subcmd == "list":
+        result = git_manager.list_projects()
+
+    # /git remove <путь>
+    elif subcmd == "remove" or subcmd == "rm":
+        if not arg:
+            await message.answer("Укажи путь: /git remove ~/myproject")
+            return
+        result = git_manager.remove_project(arg)
+
+    # /git status [путь]
+    elif subcmd == "status":
+        if arg:
+            result = git_manager.get_status(arg)
+        else:
+            projects = git_manager._load_projects()
+            if not projects:
+                result = "📭 Проектов нет. Добавь: /git add ~/myproject"
+            else:
+                parts = []
+                for p in projects:
+                    parts.append(git_manager.get_status(p))
+                    parts.append("")
+                result = "\n".join(parts).rstrip()
+
+    # /git commit [путь]
+    elif subcmd == "commit":
+        if arg:
+            result = await git_manager.commit_project(arg)
+        else:
+            projects = git_manager._load_projects()
+            if not projects:
+                result = "📭 Проектов нет."
+            else:
+                parts = []
+                for p in projects:
+                    parts.append(await git_manager.commit_project(p))
+                result = "\n".join(parts)
+
+    # /git auto
+    elif subcmd == "auto":
+        result = await git_manager.auto_commit_all()
+        if result is None:
+            result = "✨ Изменений нет ни в одном проекте."
+
+    else:
+        result = f"⚠️ Не знаю подкоманду: {subcmd}. Смотри /git"
+
     log_to_file(message.text, result)
     await message.answer(result)
 

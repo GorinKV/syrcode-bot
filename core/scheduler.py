@@ -182,6 +182,27 @@ async def job_evening_report(bot):
         print(f">>> [scheduler] Ошибка вечернего отчёта: {e}")
 
 
+async def job_auto_commit(bot):
+    """Автокоммит во всех отслеживаемых проектах. Раз в час, молчит если нечего коммитить."""
+    try:
+        from core import git_manager
+
+        projects = git_manager._load_projects()
+        if not projects:
+            return  # нет проектов — ничего не делаем
+
+        result = await git_manager.auto_commit_all()
+        if not result:
+            return  # нечего коммитить — молчим
+
+        chat_id = _read_chat_id()
+        if chat_id:
+            await bot.send_message(chat_id, result)
+            print(">>> [scheduler] Автокоммит выполнен")
+    except Exception as e:
+        print(f">>> [scheduler] Ошибка автокоммита: {e}")
+
+
 def setup_scheduler(bot):
     scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
 
@@ -209,5 +230,14 @@ def setup_scheduler(bot):
         replace_existing=True,
     )
 
-    print(">>> [scheduler] Задачи запланированы: 7:00, 17:00, 20:40 (MSK)")
+    # Автокоммит — каждый час с 9:00 до 22:00
+    scheduler.add_job(
+        job_auto_commit,
+        CronTrigger(hour="9-22", minute=0),
+        args=[bot],
+        id="auto_commit",
+        replace_existing=True,
+    )
+
+    print(">>> [scheduler] Задачи запланированы: 7:00 (дайджест), 17:00 (напоминание), 20:40 (отчёт), 9-22 каждый час (автокоммит)")
     return scheduler
