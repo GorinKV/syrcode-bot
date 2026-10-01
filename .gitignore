@@ -1,0 +1,55 @@
+# === Виртуальное окружение ===
+venv/
+.venv/
+env/
+ENV/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# === Секреты (НИКОГДА не коммитим) ===
+.env
+.env.local
+.env.*.local
+credentials.json
+token.json
+*.pem
+*.key
+
+# === Данные приложения ===
+data/chat_id.txt
+data/completed_log.json
+data/*.log
+data/syrcode_log.txt
+
+# === Бэкапы и временные файлы ===
+*.bak
+*.bak.*
+*.backup
+*.old
+*.tmp
+*.log
+
+# === Сертификаты ===
+*.crt
+*.cer
+
+# === Редакторы и ОС ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === Тестовое ===
+test_*.py
+/tmp/
